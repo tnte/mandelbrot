@@ -8,78 +8,59 @@ import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-public class Mandelbrot {
+public abstract class Mandelbrot<S,C> {
 
-    private double maxR;
+    private S maxR;
 
-    private double maxIm;
+    private S maxIm;
 
-    private double minR;
+    private S minR;
 
-    private double minIm;
+    private S minIm;
 
     private static int resolution = 600;
 
     public static final int MAX_STEPS = 350;
 
-    public Mandelbrot(double minR, double maxR, double minIm, double maxIm) {
+    public Mandelbrot(S minR, S maxR, S minIm, S maxIm) {
         this.maxR = maxR;
         this.maxIm = maxIm;
         this.minR = minR;
         this.minIm = minIm;
     }
 
-    public Map<Integer, Set<Complex>> sampleSet() {
-        Map<Integer, Set<Complex>> values = new HashMap<>();
-        for (double x = minR; x < maxR; x += (1.0 / resolution)) {
-            for (double y = minIm; y < maxIm; y += (1.0 / resolution)) {
-                Complex c = new Complex(x, y);
-                int step = getConvergence(c);
-                values.putIfAbsent(step, new HashSet<>());
-                values.get(step).add(c);
-            }
-        }
-
-        return values;
+    public final int getConvergence(C c) {
+        return applySeries(zero(), c, 0);
     }
 
-    public int getConvergence(Complex c) {
-        return applySeries(Complex.ZERO, c, 0);
+    protected abstract int applySeries(C z, C c, int step);
+
+    protected abstract C zero();
+
+    public S rescaleToReal(S unscaledValue, S oldLowerBound, S oldUpperbound) {
+        return rescaleToNewScale(unscaledValue, oldLowerBound, oldUpperbound, getMinR(), getMaxR());
     }
 
-    public int applySeries(Complex z, Complex c, int step) {
-        if (step < MAX_STEPS) {
-            z = z.multiply(z).add(c);
-            if (z.abs() > 2)
-                return step;
-            return applySeries(z, c, step + 1);
-        }
-
-        return step;
+    public S rescaleToImaginary(S unscaledValue, S oldLowerBound, S oldUpperbound) {
+        return rescaleToNewScale(unscaledValue, oldLowerBound, oldUpperbound, getMinIm(), getMaxIm());
     }
 
-    public double getMaxR() {
+    public abstract S rescaleToNewScale(S unscaledValue, S oldLowerBound, S oldUpperbound, S newLowerbound, S newUpperbound);
+
+    public S getMaxR() {
         return maxR;
     }
 
-    public double getMaxIm() {
+    public S getMaxIm() {
         return maxIm;
     }
 
-    public double getMinR() {
+    public S getMinR() {
         return minR;
     }
 
-    public double getMinIm() {
+    public S getMinIm() {
         return minIm;
-    }
-
-    public static int getResolution() {
-        return resolution;
-    }
-
-    public static int getMaxSteps() {
-        return MAX_STEPS;
     }
 
 }
