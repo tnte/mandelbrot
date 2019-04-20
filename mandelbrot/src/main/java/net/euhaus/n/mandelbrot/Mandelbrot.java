@@ -18,9 +18,9 @@ public class Mandelbrot {
 
     private double minIm;
 
-    private static int resolution = 1200;
+    private static int resolution = 600;
 
-    public static final int MAX_STEPS = 44;
+    public static final int MAX_STEPS = 350;
 
     public Mandelbrot(double minR, double maxR, double minIm, double maxIm) {
         this.maxR = maxR;
@@ -34,7 +34,7 @@ public class Mandelbrot {
         for (double x = minR; x < maxR; x += (1.0 / resolution)) {
             for (double y = minIm; y < maxIm; y += (1.0 / resolution)) {
                 Complex c = new Complex(x, y);
-                int step = applySeries(Complex.ZERO, c, 0);
+                int step = getConvergence(c);
                 values.putIfAbsent(step, new HashSet<>());
                 values.get(step).add(c);
             }
@@ -43,9 +43,13 @@ public class Mandelbrot {
         return values;
     }
 
+    public int getConvergence(Complex c) {
+        return applySeries(Complex.ZERO, c, 0);
+    }
+
     public int applySeries(Complex z, Complex c, int step) {
         if (step < MAX_STEPS) {
-            z = (z.multiply(z)).add(c);
+            z = z.multiply(z).add(c);
             if (z.abs() > 2)
                 return step;
             return applySeries(z, c, step + 1);

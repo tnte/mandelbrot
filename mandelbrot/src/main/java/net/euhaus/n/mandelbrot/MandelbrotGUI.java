@@ -2,25 +2,23 @@ package net.euhaus.n.mandelbrot;
 
 
 import javafx.application.Application;
+import javafx.event.EventHandler;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
-import javafx.scene.paint.Paint;
+import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import org.apache.commons.math3.complex.Complex;
-import org.apache.commons.math3.geometry.Point;
-import org.apache.commons.math3.geometry.euclidean.twod.Euclidean2D;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class MandelbrotGUI extends Application {
 
-    public static final int MAX_WIDTH = 1024;
-    public static final int MAX_HEIGHT = 768;
+    public static final int MAX_WIDTH = 800;
+    public static final int MAX_HEIGHT = 600;
 
     private Mandelbrot mandelbrot;
 
@@ -63,67 +61,186 @@ public class MandelbrotGUI extends Application {
 
     }
 
-
-    public static void main(String[] args) {
-        launch(args);
+    public MandelbrotGUI() {
+        mandelbrot = new Mandelbrot(-2, 1, -1.5, 1.5);
     }
 
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("Drawing Operations Test");
+        primaryStage.setTitle("Mandelbrot");
+
         Group root = new Group();
-        Canvas canvas = new Canvas(MAX_WIDTH, MAX_HEIGHT);
+        MandelbrotCanvas mandelbrotCanvas = new MandelbrotCanvas();
+        mandelbrotCanvas.widthProperty().bind(primaryStage.widthProperty());
+        mandelbrotCanvas.heightProperty().bind(primaryStage.heightProperty());
 
-        final double[] selectionStart = new double[2];
+        SelectionCanvas selectionCanvas = new SelectionCanvas();
+        selectionCanvas.widthProperty().bind(primaryStage.widthProperty());
+        selectionCanvas.heightProperty().bind(primaryStage.heightProperty());
 
-    /*    canvas.setOnMousePressed(e -> {
-            GraphicsContext gc = canvas.getGraphicsContext2D();
-            selectionStart[0] = e.getX();
-            selectionStart[1] = e.getY();
-            gc.setFill(Color.color(Color.BLUE.getRed(), Color.BLUE.getGreen(), Color.BLUE.getBlue(), 0.2));
+        selectionCanvas.addZoomRequestListener((minR, maxR, minIm, maxIm) -> {
+            mandelbrot = new Mandelbrot(minR, maxR, minIm, maxIm);
+            mandelbrotCanvas.draw();
         });
-        canvas.setOnMouseDragged( e-> {
-            GraphicsContext gc = canvas.getGraphicsContext2D();
-            gc.clearRect(0,0, canvas.getWidth(), canvas.getHeight());
-            gc.fillRect(selectionStart[0], selectionStart[1], e.getX()-selectionStart[0], e.getY()-selectionStart[1]);
-        });
-        canvas.setOnMouseReleased( e-> {
-            GraphicsContext gc = canvas.getGraphicsContext2D();
-            gc.clearRect(0,0, canvas.getWidth(), canvas.getHeight());
-        });*/
 
-        GraphicsContext gc = canvas.getGraphicsContext2D();
-
-        mandelbrot = new Mandelbrot(-1.8, 0.6, -1.2, 1.2);
-        drawMandelbrot(gc);
-
-        root.getChildren().add(canvas);
-
-
+        root.getChildren().add(mandelbrotCanvas);
+        root.getChildren().add(selectionCanvas);
         Scene scene = new Scene(root);
         scene.setFill(this.getColor(1));
         primaryStage.setScene(scene);
+        primaryStage.setWidth(MAX_WIDTH);
+        primaryStage.setHeight(MAX_HEIGHT);
         primaryStage.show();
     }
 
-    private void drawMandelbrot(GraphicsContext gc) {
-        Map<Integer, Set<Complex>> set = mandelbrot.sampleSet();
-        System.out.println("Set ready");
-        for (Map.Entry<Integer, Set<Complex>> entry : set.entrySet()) {
-            int step = entry.getKey();
-             gc.setFill(getColor(step));
-            for(Complex c : entry.getValue()) {
-                double x = ((c.getReal() - mandelbrot.getMinR()) / (mandelbrot.getMaxR() - mandelbrot.getMinR())) * MAX_WIDTH;
-                double y = ((c.getImaginary() - mandelbrot.getMinIm()) / (mandelbrot.getMaxIm() - mandelbrot.getMinIm())) * MAX_HEIGHT;
-                gc.fillOval(x, y, 1, 1);
-            }
+    public Color getColor(int step) {
+        return colorMap.get(step % (colorMap.size() + 1));
+    }
+
+    public static double rescale(double coordinate, double currentMaxValue, double minNewScape, double maxNewScape) {
+        return (1.0 * coordinate / currentMaxValue) * (maxNewScape - minNewScape) + minNewScape;
+    }
+
+    private abstract class ResizableCanvas extends Canvas {
+
+        public ResizableCanvas() {
+            // Redraw canvas when size changes.
+            widthProperty().addListener(evt -> draw());
+            heightProperty().addListener(evt -> draw());
+        }
+
+        public void draw() {
+            double width = getWidth();
+            double height = getHeight();
+
+            GraphicsContext gc = getGraphicsContext2D();
+            gc.clearRect(0, 0, width, height);
+
+            draw(gc);
+        }
+
+        protected abstract void draw(GraphicsContext gc);
+
+        @Override
+        public boolean isResizable() {
+            return true;
+        }
+
+        @Override
+        public double prefWidth(double height) {
+            return getWidth();
+        }
+
+        @Override
+        public double prefHeight(double width) {
+            return getHeight();
         }
 
     }
 
+    private class MandelbrotCanvas extends ResizableCanvas {
 
-    public Color getColor(int step) {
-        return colorMap.get(step % (colorMap.size() + 1));
+        @Override
+        protected void draw(GraphicsContext gc) {
+            double width = getWidth();
+            double height = getHeight();
+            Map<Integer, Collection<double[]>> pixels = new HashMap<>();
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    double real = rescale(x, width, mandelbrot.getMinR(), mandelbrot.getMaxR());
+                    double imaginary = rescale(y, height, mandelbrot.getMinIm(), mandelbrot.getMaxIm());
+                    Complex c = new Complex(real, imaginary);
+                    int step = mandelbrot.getConvergence(c);
+                    pixels.putIfAbsent(step, new LinkedList<>());
+                    pixels.get(step).add(new double[]{x, y});
+
+                }
+            }
+
+            for (Map.Entry<Integer, Collection<double[]>> entry : pixels.entrySet()) {
+                int step = entry.getKey();
+                gc.setFill(getColor(step));
+                for (double[] coords : entry.getValue()) {
+                    gc.fillOval(coords[0], coords[1], 1, 1);
+                }
+            }
+        }
+    }
+
+    private class SelectionCanvas extends ResizableCanvas {
+
+        private Double x;
+
+        private Double y;
+
+        private Double currentX;
+
+        private Double currentY;
+
+        private List<ZoomEventListener> zoomRequestListener;
+
+        private double[] rectangle;
+
+        public SelectionCanvas() {
+            super();
+            zoomRequestListener = new ArrayList<>();
+            setOnMousePressed(e -> {
+                x = e.getX();
+                y = e.getY();
+            });
+            setOnMouseDragged(e -> {
+                currentX = e.getX();
+                currentY = e.getY();
+                super.draw();
+            });
+            setOnMouseReleased(e -> {
+                zoomRequestListener.forEach(ev -> {
+                    double width = widthProperty().get();
+                    double height = heightProperty().get();
+
+                    double minR = rescale(rectangle[0], width, mandelbrot.getMinR(), mandelbrot.getMaxR());
+                    double minIm = rescale(rectangle[1], height, mandelbrot.getMinIm(), mandelbrot.getMaxIm());
+
+                    double maxR = rescale(rectangle[0] + rectangle[2], width, mandelbrot.getMinR(), mandelbrot.getMaxR());
+                    double maxIm = rescale(rectangle[1] + rectangle[3], height, mandelbrot.getMinIm(), mandelbrot.getMaxIm());
+
+                    ev.onZoomRequested(minR, maxR, minIm, maxIm);
+                });
+                reset();
+                super.draw();
+            });
+        }
+
+        public void addZoomRequestListener(ZoomEventListener listener) {
+            zoomRequestListener.add(listener);
+        }
+
+        private void reset() {
+            x = y = currentY = currentY = null;
+            rectangle = null;
+        }
+
+        @Override
+        protected void draw(GraphicsContext gc) {
+            if (x != null && y != null & currentX != null && currentY != null) {
+                double deltaX = currentX - x;
+                double deltaY = currentY - y;
+                gc.setFill(Color.RED);
+                gc.setGlobalAlpha(0.5);
+                gc.fillRect(x, y, deltaX, deltaY);
+                rectangle = new double[]{x, y, deltaX, deltaY};
+            }
+        }
+    }
+
+    public interface ZoomEventListener extends EventListener {
+
+        public void onZoomRequested(double minR, double maxR, double minIm, double maxIm);
+
+    }
+
+    public static void main(String[] args) {
+        launch(args);
     }
 
 }
