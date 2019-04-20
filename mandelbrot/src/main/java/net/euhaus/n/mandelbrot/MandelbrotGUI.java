@@ -19,8 +19,8 @@ import java.util.Set;
 
 public class MandelbrotGUI extends Application {
 
-    public static final int MAX_WIDTH = 800;
-    public static final int MAX_HEIGHT = 600;
+    public static final int MAX_WIDTH = 1024;
+    public static final int MAX_HEIGHT = 768;
 
     private Mandelbrot mandelbrot;
 

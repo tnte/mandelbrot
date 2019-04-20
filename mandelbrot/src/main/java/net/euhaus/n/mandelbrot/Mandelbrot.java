@@ -18,7 +18,7 @@ public class Mandelbrot {
 
     private double minIm;
 
-    private static int resolution = 800;
+    private static int resolution = 1200;
 
     public static final int MAX_STEPS = 44;
 
